@@ -1,6 +1,9 @@
 pragma solidity ^0.4.11;
 
 contract Casino {
+	// key: ece1770project, erupt safe slam protect plate casino firm plug soap emerge skirt million
+	// 0x67f961cf473ef11cc4dd06fa9291d747fa950751
+
 	address owner;
 
 	uint minimumBet = 100 finney;
@@ -82,5 +85,13 @@ contract Casino {
 				winners[i].transfer(winnerEtherAmount);
 			}
 		}
+		resetData();
 	}
 
+	function resetData() {
+   		players.length = 0; // Delete all the players array
+   		totalBet = 0;
+   		numberOfBets = 0;
+   	}
+
+}
