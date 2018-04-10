@@ -1,6 +1,8 @@
 pragma solidity ^0.4.20;
+import "github.com/oraclize/ethereum-api/oraclizeAPI.sol";
 
-contract Casino {
+
+contract Casino is usingOraclize {
 	address owner;
 
 	uint minBet = 100 finney;
@@ -10,10 +12,17 @@ contract Casino {
 	
 	uint numPlayers;
 	uint public constant MAX_NUM_PLAYERS = 100;
-    
+	
+	// Oracle
+    event newOraclizeQuery(string description);
+
+    // player can bet on the point difference or the winning team. Winning condition for point is guess it right and the winning team
+	// winner of points takes all, if none, ones guessing the winning team will split the pool
 	struct Player {
+		uint typeBet;  // 1 for guessing points, 2 for guessing win-loss
+		uint numberSelected;  // the point difference
+		uint winningTeam;  // 1 for team1, 2 for team2
 		uint amountBet;
-		uint numberSelected; // TODO, need to make this to adapt different betting scheme
 		int datasource;
 	}
 	
@@ -28,25 +37,52 @@ contract Casino {
 	string constant datasource1 = "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev";
 	string datasourceString = "";
 	
-	
 	// Control various stages of the contract
 	bool mayBet = false;
 	bool maySubmit = false;
+	
+	string team1Code = "";
+	string team2Code = "";
+	string matchDate = "";
+
+	struct Result {
+		uint winningTeam;
+		uint pointDifference;
+	}
+	Result gameResult;
+	uint unixGameEndTime;
+
 	 
     event Bet(address indexed sender, uint indexed bet);
 	event SelectDataSource(address indexed sender, uint indexed bet);
 	//event DataSubmitted();
     event PrizeDistributed(address indexed sender, address[] indexed winners, uint prize);
+    
+    /**************************** Data sources ********************************/
+    function check_score() public payable {
+        emit newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
+		// TODO: add true date
+        oraclize_query("URL", "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev/TOR/IND/20180406");
+	}
+
+    function __callback(bytes32 myid, string result) {
+        require(msg.sender == oraclize_cbAddress());
+		// TODO update/distribute T5 -> Result{winningTeam=1, pointDifference=5}
+    }
  
 
 	/************************** Owner Functions *******************************/
-	function Casino(uint _minBet, uint _maxBet) 
+	function Casino(uint _minBet, uint _maxBet, string t1Code, string t2Code, 
+	uint _unixGameEndTime) 
 	public 
 	{
 
 		owner = msg.sender;
 		if (_minBet > 0) minBet = _minBet;
     	if (_maxBet >= _minBet) maxBet = _maxBet;
+    	if (_unixGameEndTime > 1523300000) unixGameEndTime = _unixGameEndTime;
+    	team1Code = t1Code;
+    	team2Code = t2Code;
 		
     	datasources.push(datasource1);
 	    datasourceString = strConcat(datasourceString, "0 : ");
@@ -54,6 +90,7 @@ contract Casino {
 	    datasourceString = strConcat(datasourceString, "  |  ");
 		
 		mayBet = true;
+		oraclize_setProof(proofType_TLSNotary);
 	}
 	
 	mapping(uint => uint) tally;
@@ -96,23 +133,28 @@ contract Casino {
 	/************************** Player Functions *******************************/
 
 	// To bet for a number between 1 and 10 both inclusive
-	function bet(uint number) 
+	function bet(uint teamWon, uint pointDiff, uint betType) 
     public
 	payable 
 	{
 		require (mayBet);
 		require(!checkExists(players, msg.sender));
     	require(msg.value >= minBet && msg.value <= maxBet);
+    	require(teamWon == 1 || teamWon == 2);
+    	require(betType == 1 || betType == 2);
+    	
 
 		playerInfo[msg.sender].amountBet = msg.value;
-		playerInfo[msg.sender].numberSelected = number;
+		playerInfo[msg.sender].numberSelected = pointDiff;
+		playerInfo[msg.sender].typeBet = betType;
+		playerInfo[msg.sender].winningTeam = teamWon;
 		playerInfo[msg.sender].datasource = -1; // use default for now.
 		
 		numPlayers += 1;
 		players.push(msg.sender);
 		totalBet += msg.value;
 		
-        emit Bet(msg.sender, number);
+        emit Bet(msg.sender, teamWon);
 	}
 	
 	// https://ethereum.stackexchange.com/questions/729/how-to-concatenate-strings-in-solidity
@@ -194,7 +236,7 @@ contract Casino {
 		return false;
 	}
 	
-	function strConcat(string _a, string _b) private returns (string){
+	function strConcat(string _a, string _b) internal returns (string){
         bytes memory _ba = bytes(_a);
         bytes memory _bb = bytes(_b);
         string memory babbs = new string(_ba.length + _bb.length);
@@ -204,5 +246,4 @@ contract Casino {
         for (i = 0; i < _bb.length; i++) babb[k++] = _bb[i];
         return string(babb);
     }
-
 }
