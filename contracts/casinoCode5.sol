@@ -71,15 +71,35 @@ contract Casino is usingOraclize {
 		// TODO update/distribute T5 -> Result{winningTeam=1, pointDifference=5}
 		bytes memory resultBytes = bytes(result);
 		
-        bytes memory teamByte = new bytes(1);
-        teamByte[0] = resultBytes[0];
-        gameResult.winningTeam = string(teamByte);
-        
-        bytes memory scoreBytes = new bytes(resultBytes.length - 1);
-        for (uint i = 1; i < resultBytes.length; i ++) {
-            scoreBytes = resultBytes[i];
+        uint resultCode = uint(resultBytes[0]);
+        if (resultCode == 70) {//F
+            gameResult.winningTeam = 2;
+        } else if (resultCode == 84) { //T
+             gameResult.winningTeam = 1;
+        } else {
+             gameResult.winningTeam = 5;
         }
-        gameResult.pointDifference = string(scoreBytes);
+        
+        uint size = 0;
+        for (uint i = 1; i < resultBytes.length; i ++) {
+            if (uint(resultBytes[i]) == 0) break;
+            size ++;
+        }
+        
+        int sum = 0;
+        int base = 10;
+        bool first =  true;
+        for (i = size - 1; i >= 0; i --) {
+            int curr = int(resultBytes[i]);
+            if (first == true) {
+                sum += curr;
+                first = false;
+                continue;
+            }
+            sum += curr * base;
+            base = base * 10;
+        }
+        gameResult.pointDifference = uint(sum);
     }
  
 
