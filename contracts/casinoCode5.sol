@@ -32,9 +32,10 @@ contract Casino is usingOraclize {
 	//a data structure to store all the data sources, should be immutable upon construction!
 	string[] datasources;
 	int chosenDatasource = -1;
+	string url = "";
 	
 	//https://ethereum.stackexchange.com/questions/11556/use-string-type-or-bytes32
-	string constant datasource1 = "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev";
+	string constant datasource1 = "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev/";
 	string datasourceString = "";
 	
 	// Control various stages of the contract
@@ -62,12 +63,43 @@ contract Casino is usingOraclize {
     function check_score() public payable {
         emit newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
 		// TODO: add true date
-        oraclize_query("URL", "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev/TOR/IND/20180406");
+        oraclize_query("URL", url);
 	}
 
     function __callback(bytes32 myid, string result) {
         require(msg.sender == oraclize_cbAddress());
 		// TODO update/distribute T5 -> Result{winningTeam=1, pointDifference=5}
+		bytes memory resultBytes = bytes(result);
+		
+        uint resultCode = uint(resultBytes[0]);
+        if (resultCode == 70) {//F
+            gameResult.winningTeam = 2;
+        } else if (resultCode == 84) { //T
+             gameResult.winningTeam = 1;
+        } else {
+             gameResult.winningTeam = 5;
+        }
+        
+        uint size = 0;
+        for (uint i = 1; i < resultBytes.length; i ++) {
+            if (uint(resultBytes[i]) == 0) break;
+            size ++;
+        }
+        
+        int sum = 0;
+        int base = 10;
+        bool first =  true;
+        for (i = size - 1; i >= 0; i --) {
+            int curr = int(resultBytes[i]);
+            if (first == true) {
+                sum += curr;
+                first = false;
+                continue;
+            }
+            sum += curr * base;
+            base = base * 10;
+        }
+        gameResult.pointDifference = uint(sum);
     }
  
 
@@ -120,6 +152,13 @@ contract Casino is usingOraclize {
 				chosenDatasource = int(i);
 			}
 		}
+		
+		url = strConcat(url, datasources[uint(chosenDatasource)]);
+		url = strConcat(url, team1Code);
+		url = strConcat(url, "/");
+		url = strConcat(url, team2Code);
+		url = strConcat(url, "/");
+		url = strConcat(url, matchDate);
 	}
 	
 	/// this function will try to settle the game result. The user calls it with
