@@ -47,7 +47,7 @@ contract Casino is usingOraclize {
 
 	struct Result {
 		uint winningTeam;
-		uint pointDifference;
+		uint pointDifference;  // 404 means error
 	}
 	Result gameResult;
 	uint unixGameEndTime;
@@ -122,17 +122,26 @@ contract Casino is usingOraclize {
 		}
 	}
 	
-	function submitData(uint data)  //TODO, check that it is coming from the expected data source.
+	/// this function will try to settle the game result. The user calls it with
+	/// the unix time of current time. If time is lower, does not allow endGame
+	/// if time is bigger, fetch data. If error, kickout the user
+	
+	function endGame(uint currTime) 
+	payable
 	public
 	{
-		require (maySubmit);
-	    require (msg.sender == owner);
-        distributePrize(data); // TODO
+		if (currTime > unixGameEndTime) {
+	        check_score();
+		}
+	}
+	
+	function kickUser(address user) internal
+	{
+	    delete playerInfo[user];
 	}
 	
 	/************************** Player Functions *******************************/
 
-	// To bet for a number between 1 and 10 both inclusive
 	function bet(uint teamWon, uint pointDiff, uint betType) 
     public
 	payable 
@@ -190,34 +199,52 @@ contract Casino is usingOraclize {
 	function potentiallyDistributePrize() private {
         //if (numPlayers < maxAmountOfBets) return;
 	    // the data sources have to agree
-        uint agreement = 0;
-	    distributePrize(agreement);
+	    distributePrize(gameResult);
 	}
 	
-	address[] winners;
-	function distributePrize(uint winner) private {
-		uint count = 0; 
+	address[] winners;    // both point and winnning team
+	address[] subWinners; // only winning team
+	function distributePrize(Result r) private {
+		uint count = 0;
+		uint subCount = 0;
 		for (uint i = 0; i < players.length; i++) {
 			address player = players[i];
-			if (playerInfo[player].numberSelected == winner) {
-			    //winners[count] = player; //problematic
-			    winners.push(player);
-				count++;
+			if (playerInfo[player].winningTeam == r.winningTeam) {
+			    subWinners.push(player);
+			    if (playerInfo[player].numberSelected == r.pointDifference) {
+			        winners.push(player);
+			        count++;
+			    }
+				subCount++;
 			}
 			delete playerInfo[player];  // delete the player after insnsertion.
 		}
 
 		// delete all data in players by setting the length???
 		players.length = 0;
+        
+        if (count > 0) {
+            // people winning points and win/lose
+		    uint winnerEtherAmount = totalBet / winners.length;
+		    for (i = 0; i < count; i++) {
+		    	if ( winners[i] != address(0)) { 
+		    		// not null
+		    		winners[i].transfer(winnerEtherAmount);
+		    	}
+		    }
+		    emit PrizeDistributed(address(this), winners, winnerEtherAmount);
+        } else {
+            // only winning the win/loss portion, split the sub_winning
+            winnerEtherAmount = totalBet / subWinners.length;
+		    for (i = 0; i < subCount; i++) {
+		    	if ( subWinners[i] != address(0)) { 
+		    		// not null
+		    		subWinners[i].transfer(winnerEtherAmount);
+		    	}
+		    }
+		    emit PrizeDistributed(address(this), subWinners, winnerEtherAmount);
 
-		uint winnerEtherAmount = totalBet / winners.length;
-		for (i = 0; i < count; i++) {
-			if ( winners[i] != address(0)) { 
-				// not null
-				winners[i].transfer(winnerEtherAmount);
-			}
-		}
-		emit PrizeDistributed(address(this), winners, winnerEtherAmount);
+        }
 	}
 	
 	function kill()
