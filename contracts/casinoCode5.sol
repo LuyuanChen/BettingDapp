@@ -258,9 +258,6 @@ contract Casino is usingOraclize {
 			}
 			delete playerInfo[player];  // delete the player after insnsertion.
 		}
-
-		// delete all data in players by setting the length???
-		players.length = 0;
         
         if (count > 0) {
             // people winning points and win/lose
@@ -272,7 +269,7 @@ contract Casino is usingOraclize {
 		    	}
 		    }
 		    emit PrizeDistributed(address(this), winners, winnerEtherAmount);
-        } else {
+        } else if (subCount > 0) {
             // only winning the win/loss portion, split the sub_winning
             winnerEtherAmount = totalBet / subWinners.length;
 		    for (i = 0; i < subCount; i++) {
@@ -282,7 +279,15 @@ contract Casino is usingOraclize {
 		    	}
 		    }
 		    emit PrizeDistributed(address(this), subWinners, winnerEtherAmount);
-
+ 
+        } else {
+        	// no one wins
+        	for (i = 0; i < players.length; i++) {
+		    	if ( players[i] != address(0)) { 
+		    		// not null
+		    		players[i].transfer(playerInfo[players[i].amountBet]);
+		    	}
+		    }
         }
 	}
 	
