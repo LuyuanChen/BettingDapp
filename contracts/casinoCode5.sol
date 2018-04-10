@@ -32,9 +32,10 @@ contract Casino is usingOraclize {
 	//a data structure to store all the data sources, should be immutable upon construction!
 	string[] datasources;
 	int chosenDatasource = -1;
+	string url = "";
 	
 	//https://ethereum.stackexchange.com/questions/11556/use-string-type-or-bytes32
-	string constant datasource1 = "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev";
+	string constant datasource1 = "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev/";
 	string datasourceString = "";
 	
 	// Control various stages of the contract
@@ -62,12 +63,23 @@ contract Casino is usingOraclize {
     function check_score() public payable {
         emit newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
 		// TODO: add true date
-        oraclize_query("URL", "av17pn1rh1.execute-api.us-east-1.amazonaws.com/dev/TOR/IND/20180406");
+        oraclize_query("URL", url);
 	}
 
     function __callback(bytes32 myid, string result) {
         require(msg.sender == oraclize_cbAddress());
 		// TODO update/distribute T5 -> Result{winningTeam=1, pointDifference=5}
+		bytes memory resultBytes = bytes(result);
+		
+        bytes memory teamByte = new bytes(1);
+        teamByte[0] = resultBytes[0];
+        gameResult.winningTeam = string(teamByte);
+        
+        bytes memory scoreBytes = new bytes(resultBytes.length - 1);
+        for (uint i = 1; i < resultBytes.length; i ++) {
+            scoreBytes = resultBytes[i];
+        }
+        gameResult.pointDifference = string(scoreBytes);
     }
  
 
@@ -120,6 +132,13 @@ contract Casino is usingOraclize {
 				chosenDatasource = int(i);
 			}
 		}
+		
+		url = strConcat(url, datasources[uint(chosenDatasource)]);
+		url = strConcat(url, team1Code);
+		url = strConcat(url, "/");
+		url = strConcat(url, team2Code);
+		url = strConcat(url, "/");
+		url = strConcat(url, matchDate);
 	}
 	
 	function submitData(uint data)  //TODO, check that it is coming from the expected data source.
